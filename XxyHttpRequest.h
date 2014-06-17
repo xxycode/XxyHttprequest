@@ -7,6 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 typedef void(^FinishLoadBlock)(NSData *);
 typedef void(^FailedBlock)(NSError *);
@@ -18,6 +19,9 @@ typedef void(^ProgressBlock)(float);
     NSURLConnection *connection;
     NSMutableURLRequest *request;
     NSInteger dataTotalSize;
+    NSMutableArray *fileArr;
+    NSMutableArray *keyArr;
+    NSDictionary *postDataDic;
 }
 
 @property (nonatomic, strong)FinishLoadBlock finishBlock;
@@ -25,7 +29,7 @@ typedef void(^ProgressBlock)(float);
 @property (nonatomic, strong)ProgressBlock progressBlock;
 
 - (void)startAsyncWithUrl:(NSURL *)url;
-- (void)startAsyncWithUrl:(NSURL *)url postData:(NSDictionary *)dic;
-- (void)startAsyncWithUrl:(NSURL *)url postData:(NSDictionary *)dic name:(NSString *)name;
+- (void)setFile:(UIImage *)img forKey:(NSString *)key;
+- (void)setPostDataDic:(NSDictionary *)dic;
 
 @end

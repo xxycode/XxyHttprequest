@@ -2,12 +2,11 @@
 //  XxyHttpRequest.m
 //  BestvSoccer
 //
-//  Created by Apple on 14-6-16.
+//  Created by iXxy on 14-6-16.
 //  Copyright (c) 2014年 xxy. All rights reserved.
 //
 
 #import "XxyHttpRequest.h"
-#import <UIKit/UIKit.h>
 #define kPicName @"myPic"
 
 @implementation XxyHttpRequest 
@@ -21,40 +20,75 @@
 
 - (void)startAsyncWithUrl:(NSURL *)url
 {
+    NSString *TWITTERFON_FORM_BOUNDARY = @"AaB03x";
+    request = [[NSMutableURLRequest alloc] init];
     [request setURL:url];
-    [request setCachePolicy:NSURLRequestReloadIgnoringLocalCacheData];
-    resData = [[NSMutableData alloc] init];
-    connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
-    [request setTimeoutInterval:60];
-    [connection start];
+    NSString *MPboundary=[[NSString alloc]initWithFormat:@"--%@",TWITTERFON_FORM_BOUNDARY];
+    NSString *endMPboundary=[[NSString alloc]initWithFormat:@"%@--",MPboundary];
+    if (postDataDic != nil) {
+        NSMutableString *body=[[NSMutableString alloc]init];
+        NSArray *keys= [postDataDic allKeys];
+        for(int i=0;i<[keys count];i++)
+        {
+            NSString *key=[keys objectAtIndex:i];
+            [body appendFormat:@"%@\r\n",MPboundary];
+            [body appendFormat:@"Content-Disposition: form-data; name=\"%@\"\r\n\r\n",key];
+            [body appendFormat:@"%@\r\n",[self urlEncode:[postDataDic objectForKey:key]]];
+        }
+        NSMutableData *myRequestData=[NSMutableData data];
+        [myRequestData appendData:[body dataUsingEncoding:NSUTF8StringEncoding]];
+        if (fileArr != nil && keyArr != nil) {
+            for (int i = 0; i < [fileArr count]; i ++) {
+                UIImage *image = (UIImage *)[fileArr objectAtIndex:i];
+                NSData *data = UIImagePNGRepresentation(image);
+                NSString *imgType = [XxyHttpRequest typeForImageData:data];
+                NSArray *imgT = [imgType componentsSeparatedByString:@"/"];
+                NSString *suffixName = [imgT objectAtIndex:1];
+                NSString *picName = [NSString stringWithFormat:@"%@%d",kPicName,i];
+                NSString *fileName = [NSString stringWithFormat:@"%@.%@",picName,suffixName];
+                NSLog(@"%@",fileName);
+                NSString *contentDis = [NSString stringWithFormat:@"Content-Disposition: form-data; name=\"%@\"; filename=\"%@\"\r\n",[keyArr objectAtIndex:i],fileName];
+                NSMutableString *tmpBody=[[NSMutableString alloc]init];
+                if (i == 0) {
+                    [tmpBody appendFormat:@"%@\r\n",MPboundary];
+                }else{
+                    [tmpBody appendFormat:@"\n%@\r\n",MPboundary];
+                }
+                [tmpBody appendString:contentDis];
+                [tmpBody appendFormat:@"Content-Type: %@\r\n\r\n",imgType];
+                
+                [tmpBody appendString:@"filecontent"];
+                
+                [myRequestData appendData:[tmpBody dataUsingEncoding:NSUTF8StringEncoding]];
+                [myRequestData appendData:data];
+            }
+        }
+        NSString *end=[[NSString alloc]initWithFormat:@"\r\n%@",endMPboundary];
+        [myRequestData appendData:[end dataUsingEncoding:NSUTF8StringEncoding]];
+        NSString *content=[[NSString alloc]initWithFormat:@"multipart/form-data; boundary=%@",TWITTERFON_FORM_BOUNDARY];
+        [request setValue:content forHTTPHeaderField:@"Content-Type"];
+        [request setValue:[NSString stringWithFormat:@"%lu", (unsigned long)[myRequestData length]] forHTTPHeaderField:@"Content-Length"];
+        [request setHTTPBody:myRequestData];
+        [request setHTTPMethod:@"POST"];
+        [request setTimeoutInterval:60];
+        connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
+        resData = [[NSMutableData alloc] init];
+        [connection start];
+
+    }else{
+        [request setURL:url];
+        [request setCachePolicy:NSURLRequestReloadIgnoringLocalCacheData];
+        resData = [[NSMutableData alloc] init];
+        connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
+        [request setTimeoutInterval:60];
+        [connection start];
+    }
+   
 }
 
-- (void)startAsyncWithUrl:(NSURL *)url postData:(NSDictionary *)dic
+- (void)setPostDataDic:(NSDictionary *)dic
 {
-    NSArray *keyArr = [dic allKeys];
-    NSArray *valueArr = [dic allValues];
-    NSMutableString *postStr = [[NSMutableString alloc] init];
-    for (int i = 0; i < [dic count]; i ++) {
-        NSString *key = [keyArr objectAtIndex:i];
-        NSString *value = [valueArr objectAtIndex:i];
-        if (i == 0) {
-            [postStr appendFormat:@"%@=%@",key,[self urlEncode:value]];
-        } else {
-            [postStr appendFormat:@"&%@=%@",key,[self urlEncode:value]];
-        }
-    }
-    NSLog(@"%@",postStr);
-    NSData *postData = [[postStr stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding]dataUsingEncoding:NSUTF8StringEncoding];
-    NSString *postLength = [NSString stringWithFormat:@"%lu",(unsigned long)[postData length]];
-    [request setURL:url];
-    [request setHTTPMethod:@"POST"];
-    [request setValue:postLength forHTTPHeaderField:@"Content-Length"];
-    [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
-    [request setHTTPBody:postData];
-    resData = [[NSMutableData alloc] init];
-    connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
-    [request setTimeoutInterval:60];
-    [connection start];
+    postDataDic = dic;
 }
 
 - (NSString*)urlEncode:(NSString *)str
@@ -82,60 +116,25 @@
     return resultStr;
 }
 
-- (void)startAsyncWithUrl:(NSURL *)url postData:(NSDictionary *)params name:(NSString *)name;
+- (void)setFile:(UIImage *)img forKey:(NSString *)key
 {
-    NSString *TWITTERFON_FORM_BOUNDARY = @"AaB03x";
-    if (request == nil) {
-        request = [[NSMutableURLRequest alloc] init];
+    if (fileArr == nil) {
+        fileArr = [[NSMutableArray alloc] init];
     }
-    [request setURL:url];
-    NSString *MPboundary=[[NSString alloc]initWithFormat:@"--%@",TWITTERFON_FORM_BOUNDARY];
-    NSString *endMPboundary=[[NSString alloc]initWithFormat:@"%@--",MPboundary];
-    UIImage *image=[params objectForKey:@"pic"];
-    NSData* data = UIImagePNGRepresentation(image);
-    NSString *imgType = [XxyHttpRequest typeForImageData:data];
-    NSMutableString *body=[[NSMutableString alloc]init];
-    NSArray *keys= [params allKeys];
-    for(int i=0;i<[keys count];i++)
-    {
-        NSString *key=[keys objectAtIndex:i];
-        if(![key isEqualToString:@"pic"])
-        {
-            [body appendFormat:@"%@\r\n",MPboundary];
-            [body appendFormat:@"Content-Disposition: form-data; name=\"%@\"\r\n\r\n",key];
-            [body appendFormat:@"%@\r\n",[params objectForKey:key]];
-        }
+    if (keyArr == nil) {
+        keyArr = [[NSMutableArray alloc] init];
     }
-    [body appendFormat:@"%@\r\n",MPboundary];
-    NSArray *imgT = [imgType componentsSeparatedByString:@"/"];
-    NSString *suffixName = [imgT objectAtIndex:1];
-    NSString *fileName = [NSString stringWithFormat:@"%@.%@",kPicName,suffixName];
-    NSLog(@"%@",fileName);
-    NSString *contentDis = [NSString stringWithFormat:@"Content-Disposition: form-data; name=\"%@\"; filename=\"%@\"\r\n",name,fileName];
-    [body appendString:contentDis];
-    [body appendFormat:@"Content-Type: %@\r\n\r\n",imgType];
-    NSString *end=[[NSString alloc]initWithFormat:@"\r\n%@",endMPboundary];
-    NSMutableData *myRequestData=[NSMutableData data];
-    [myRequestData appendData:[body dataUsingEncoding:NSUTF8StringEncoding]];
-    [myRequestData appendData:data];
-    [myRequestData appendData:[end dataUsingEncoding:NSUTF8StringEncoding]];
-    NSString *content=[[NSString alloc]initWithFormat:@"multipart/form-data; boundary=%@",TWITTERFON_FORM_BOUNDARY];
-    [request setValue:content forHTTPHeaderField:@"Content-Type"];
-    [request setValue:[NSString stringWithFormat:@"%d", [myRequestData length]] forHTTPHeaderField:@"Content-Length"];
-    [request setHTTPBody:myRequestData];
-    [request setHTTPMethod:@"POST"];
-    [request setTimeoutInterval:60];
-    connection = [[NSURLConnection alloc] initWithRequest:request delegate:self];
-    resData = [[NSMutableData alloc] init];
-    [connection start];
+    NSMutableArray *tmpFile = fileArr;
+    [tmpFile addObject:img];
+    NSMutableArray *tmpKey = keyArr;
+    [tmpKey addObject:key];
+    fileArr = [NSMutableArray arrayWithArray:tmpFile];
+    keyArr = [NSMutableArray arrayWithArray:tmpKey];
 }
 
 + (NSString *)typeForImageData:(NSData *)data {
-    
-    
     uint8_t c;
     [data getBytes:&c length:1];
-    
     switch (c) {
         case 0xFF:
             return @"image/jpeg";
@@ -174,6 +173,7 @@
         NSDictionary *httpResponseHeaderFields = [httpResponse allHeaderFields];
         
         dataTotalSize = [[httpResponseHeaderFields objectForKey:@"Content-Length"] integerValue];
+        
     }
 }
 
